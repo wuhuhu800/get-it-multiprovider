@@ -56,3 +56,7 @@ snaps-mobile/
 pr2.patch
 
 scratch/
+
+# Python bytecode from local tooling
+__pycache__/
+*.pyc
