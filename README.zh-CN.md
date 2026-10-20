@@ -94,7 +94,9 @@ Get It. 是一个把 PDF 变成「可测量的掌握度地图」的学习工具�
 
 ## 安装
 
-本仓库的 Releases 目前没有预编译安装包，本地构建即可：
+**已编译版（Intel x64 / macOS）**：直接从 [Releases](https://github.com/wuhuhu800/get-it-multiprovider/releases/latest) 下载 dmg。包内已含三处构建期修复，装完即用，不需要再补 `node_modules` 或重新签名。
+
+Apple Silicon 或想从源码构建：
 
 ```bash
 git clone https://github.com/wuhuhu800/get-it-multiprovider.git

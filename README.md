@@ -93,7 +93,9 @@ Each step warns loudly instead of failing silently if an upstream layout change 
 
 ## Install
 
-There are no prebuilt installers in this repo's Releases yet — build one locally:
+**Prebuilt (Intel x64, macOS):** grab the dmg from [Releases](https://github.com/wuhuhu800/get-it-multiprovider/releases/latest). It already contains all three build-time repairs — no `node_modules` surgery or re-signing needed after installing.
+
+For Apple Silicon, or to build from source:
 
 ```bash
 git clone https://github.com/wuhuhu800/get-it-multiprovider.git
