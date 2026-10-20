@@ -30,6 +30,7 @@ import fssync from "node:fs";
 import path from "node:path";
 import https from "node:https";
 import zlib from "node:zlib";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -154,6 +155,99 @@ async function stagePiCLI() {
   // in the TS/Next build scope, and it's pure sample code the CLI never needs.
   // (We keep `docs/`, which Pi references from its own CLI error messages.)
   await fs.rm(path.join(piDest, "examples"), { recursive: true, force: true });
+
+  // ---- Fix 1: make the staged CLI self-contained -------------------------
+  // npm hoists most of pi-coding-agent's dependencies to the project's
+  // top-level node_modules, so the package directory is NOT self-contained —
+  // `dist/core/http-dispatcher.js` does `import * as undici from "undici"`
+  // and ESM resolution walks up from `pi-cli/dist/core/` looking for a
+  // node_modules that electron-builder never copied into the bundle. Result:
+  // `ERR_MODULE_NOT_FOUND: Cannot find package 'undici'` on the first BYOK
+  // verification. Re-install the CLI's own dependency tree (locked by its
+  // bundled npm-shrinkwrap.json) directly inside pi-cli/ so resolution stops
+  // there.
+  const hasShrinkwrap = fssync.existsSync(path.join(piDest, "npm-shrinkwrap.json"));
+  const probePkg = path.join(piDest, "node_modules", "undici", "package.json");
+  if (!fssync.existsSync(probePkg) && hasShrinkwrap) {
+    console.log("[electron-prepare] installing pi-cli runtime deps (self-contained tree)…");
+    try {
+      execFileSync(
+        process.platform === "win32" ? "npm.cmd" : "npm",
+        ["install", "--omit=dev", "--no-audit", "--no-fund", "--ignore-scripts"],
+        { cwd: piDest, stdio: "inherit", env: { ...process.env, npm_config_update_notifier: "false" } },
+      );
+    } catch (err) {
+      console.warn(`[electron-prepare] pi-cli dependency install failed: ${err?.message ?? err}`);
+    }
+  }
+  if (!fssync.existsSync(probePkg)) {
+    console.warn(
+      "[electron-prepare] WARNING: pi-cli/node_modules/undici is missing — the BYOK engine " +
+        "channel will fail at runtime with ERR_MODULE_NOT_FOUND.",
+    );
+  }
+
+  // ---- Fix 2: undici × Electron's Node 20 --------------------------------
+  // undici 8.x destructures `markAsUncloneable` from node:worker_threads at
+  // module load time. That API landed in Node 22.10; Electron 33 embeds Node
+  // 20, so the binding is `undefined` and every request throws
+  // `webidl.util.markAsUncloneable is not a function`. The `--require` shim in
+  // electron/setup.js only patches the module's exports object, which cannot
+  // reach the already-destructured local inside undici. Patch the source.
+  const webidl = path.join(piDest, "node_modules", "undici", "lib", "web", "webidl", "index.js");
+  if (fssync.existsSync(webidl)) {
+    const src = fssync.readFileSync(webidl, "utf8");
+    if (src.includes("const { markAsUncloneable } = require('node:worker_threads')")) {
+      const patched = src.replace(
+        "const { markAsUncloneable } = require('node:worker_threads')",
+        "const { markAsUncloneable: _mau } = require('node:worker_threads')\n" +
+          "// [GetIt patch] Electron 33 embeds Node 20 — markAsUncloneable (Node 22.10+) is absent.\n" +
+          "const markAsUncloneable = typeof _mau === 'function' ? _mau : (obj) => obj",
+      );
+      fssync.writeFileSync(webidl, patched);
+      console.log("[electron-prepare] patched undici for Node 20 (markAsUncloneable).");
+    }
+  }
+
+  // ---- Fix 3: O(N²) JSON event stream ------------------------------------
+  // `--mode json` serialises every agent event to stdout, and each
+  // `message_update` carries TWO full copies of the cumulative message
+  // (assistantMessageEvent.partial + message). Total output therefore grows
+  // quadratically with answer length: a 1.5k-character reply already emits
+  // ~89 MB, which blows the `maxBuffer: 10 MB` on Get It's execFile and makes
+  // every knowledge-graph / tag / quiz run fail with
+  // `stdout maxBuffer length exceeded`. Consumers only read `message_end`
+  // and `agent_end`, so the streaming snapshots are pure waste here.
+  const printMode = path.join(piDest, "dist", "modes", "print-mode.js");
+  if (fssync.existsSync(printMode)) {
+    const src = fssync.readFileSync(printMode, "utf8");
+    const MARK = "[GetIt patch] skip streaming snapshots";
+    if (!src.includes(MARK)) {
+      const re =
+        /unsubscribe = session\.subscribe\(\(event\) => \{\s*if \(mode === "json"\) \{\s*writeRawStdout\(`\$\{JSON\.stringify\(event\)\}\\n`\);\s*\}\s*\}\);/;
+      const replacement =
+        "unsubscribe = session.subscribe((event) => {\n" +
+        '            if (mode === "json") {\n' +
+        `                // ${MARK} — message_update duplicates the whole message\n` +
+        "                // twice per delta, so stdout is O(N^2) in answer length.\n" +
+        '                const t = event?.type;\n' +
+        '                if (t === "message_update" || t === "tool_execution_update")\n' +
+        "                    return;\n" +
+        "                writeRawStdout(`${JSON.stringify(event)}\\n`);\n" +
+        "            }\n" +
+        "        });";
+      if (re.test(src)) {
+        fssync.writeFileSync(printMode, src.replace(re, replacement));
+        console.log("[electron-prepare] patched pi-cli stdout (O(N^2) → O(N)).");
+      } else {
+        console.warn(
+          "[electron-prepare] WARNING: could not patch print-mode.js — pi-cli layout " +
+            "changed upstream. Knowledge-graph runs may hit stdout maxBuffer again.",
+        );
+      }
+    }
+  }
+
   console.log(`[electron-prepare] staged pi cli at electron/pi-bin/pi-cli`);
 }
 
