@@ -86,6 +86,10 @@ Each step warns loudly instead of failing silently if an upstream layout change 
 
 - `scripts/verify-byok-engines.ts` (`npm run verify:byok`) — `--self-test` validates all ten presets offline (unique ids, protocol/URL agreement, key/placeholder consistency, `compat` present where required); without the flag it probes each engine live with `GET /models`.
 - `scripts/sign-adhoc.py` — signs an unsigned local build from the inside out (35 Mach-O files → nested frameworks → Helpers → main app) with the four entitlements Electron needs. `codesign --deep` alone produces a 32 MB RSS process that never opens a window.
+- `scripts/resign-app.py` — the same traversal as a general-purpose tool: `--identity`, `--keychain`, `--entitlements` are all optional, and `CFBundleExecutable` is read from `Info.plist` instead of hard-coded. Use it after touching anything inside `Contents/`.
+- `scripts/fix-gatekeeper-inode.sh` — repairs the launch when a correctly signed bundle is still refused, by copying it to a fresh inode. Explains what it measured before it changes anything, and never disables Gatekeeper globally.
+- `scripts/patch-pi-stdout.py` — standalone, idempotent version of the stdout fix for an already-installed app (the build script applies it automatically; this one is for patching a shipped bundle in place).
+
 
 ## Install
 
@@ -144,8 +148,15 @@ Upstream releases are signed with a paid Apple Developer ID and notarized, so th
 One trap worth knowing: **Gatekeeper caches its verdict on the `.app` directory's inode**, not on the path or the signature. If you re-sign in place and the dialog still appears, the cached rejection is what's killing the process — `spctl` will happily report `accepted` while the launch still fails. `objid` in `log show --predicate 'process == "syspolicyd"'` equals `stat -f "%i" "<app>"`. Copy the bundle to a new inode and it re-evaluates:
 
 ```bash
+scripts/fix-gatekeeper-inode.sh "/Applications/Get It BYOK.app"
+```
+
+The script prints the inode, the signature authority, the quarantine state and the current verdict before doing anything, then does the copy with `ditto`, re-checks the new inode, launches it and reports whether the process actually survived. If you prefer to do it by hand:
+
+```bash
 ditto "/Applications/Get It.app" "/Applications/Get It Fresh.app"
 ```
+
 
 The browser build is the no-signature fallback — the Next.js standalone server runs on plain Node and the frontend never touches `electronAPI`:
 
@@ -163,6 +174,19 @@ npx tsc --noEmit                       # types
 ```
 
 `--self-test` needs no network and no keys. The online pass needs a key per engine you want to check; engines without a key are reported as skipped, not failed.
+
+## Documentation
+
+The investigation notes are in Chinese and live under `docs/zh-CN/`. They contain the measurements each fix is based on, which the commit messages only summarise.
+
+| File | Contents |
+|---|---|
+| [`docs/zh-CN/integration-notes.md`](docs/zh-CN/integration-notes.md) | Full integration write-up: patch layout, per-file changes, build steps, six-layer verification |
+| [`docs/zh-CN/byok-dependency-fix.md`](docs/zh-CN/byok-dependency-fix.md) | Why `ERR_MODULE_NOT_FOUND: undici` happens in packaged builds, and the undici × Node 20 conflict |
+| [`docs/zh-CN/graph-stdout-fix.md`](docs/zh-CN/graph-stdout-fix.md) | The O(N²) stdout problem: byte counts per event type, before and after |
+| [`docs/zh-CN/gatekeeper-troubleshooting.md`](docs/zh-CN/gatekeeper-troubleshooting.md) | Why a correctly signed app is still refused, and the inode-cache evidence chain |
+
+Screenshots of the working dropdown live in `docs/images/`.
 
 ## Architecture (unchanged from upstream)
 

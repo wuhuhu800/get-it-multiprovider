@@ -87,6 +87,10 @@ Get It. 是一个把 PDF 变成「可测量的掌握度地图」的学习工具�
 
 - `scripts/verify-byok-engines.ts`（`npm run verify:byok`）——`--self-test` 离线校验十个预设（id 唯一、协议与 URL 匹配、Key 与占位文案一致、该带 `compat` 的带了）；不带参数则联网对每个引擎打一次 `GET /models`。
 - `scripts/sign-adhoc.py`——把未签名的本地构建由内向外签（35 个 Mach-O → 嵌套 framework → Helper → 主 app），带 Electron 必需的 4 项 entitlements。只用 `codesign --deep` 会做出一个 32 MB RSS、永远不弹窗的残废进程。
+- `scripts/resign-app.py`——同一套遍历逻辑的通用工具：`--identity`、`--keychain`、`--entitlements` 全部可选，主可执行文件名从 `Info.plist` 的 `CFBundleExecutable` 读，不写死。动过 `Contents/` 里任何东西之后用它重签。
+- `scripts/fix-gatekeeper-inode.sh`——签名正确却仍被拒时的修复工具，靠换 inode 绕过缓存。改任何东西之前先打印它测到的现状，且**从不全局关闭 Gatekeeper**。
+- `scripts/patch-pi-stdout.py`——stdout 修复的独立幂等版本，用来就地修补已安装的 app（构建脚本会自动应用同一修复）。
+
 
 ## 安装
 
@@ -145,8 +149,15 @@ npm run browser:dev    # http://localhost:3000
 **一个必须知道的坑**：Gatekeeper 把拒绝结论缓存在 **`.app` 目录的 inode** 上，不是路径，也不是签名。所以你在原地重签、弹窗照样弹——因为杀掉进程的是那条缓存，`spctl` 还会乐呵呵地报 `accepted`。日志里 `log show --predicate 'process == "syspolicyd"'` 的 `objid` 等于 `stat -f "%i" "<app>"`。换个 inode 就会重新评估：
 
 ```bash
+scripts/fix-gatekeeper-inode.sh "/Applications/Get It BYOK.app"
+```
+
+脚本会先打印 inode、签名主体、隔离属性、当前评估结果，然后用 `ditto` 复制出新 inode，再检查新副本、启动它，并确认进程是否真的活下来了。想手工做也可以：
+
+```bash
 ditto "/Applications/Get It.app" "/Applications/Get It Fresh.app"
 ```
+
 
 浏览器版是完全绕开签名的兜底方案——Next.js standalone 服务用系统 node 就能跑，前端从不碰 `electronAPI`：
 
@@ -164,6 +175,19 @@ npx tsc --noEmit                       # 类型
 ```
 
 `--self-test` 不需要网络也不需要 Key。联网那步只检查你填了 Key 的引擎，没填的记为 skipped，不算失败。
+
+## 详细文档
+
+排查过程写在 `docs/zh-CN/` 下。commit message 只写了结论，这些文件里有支撑结论的实测数据。
+
+| 文件 | 内容 |
+|---|---|
+| [`docs/zh-CN/integration-notes.md`](docs/zh-CN/integration-notes.md) | 完整接入方案：补丁结构、逐文件改动、构建步骤、六层验证 |
+| [`docs/zh-CN/byok-dependency-fix.md`](docs/zh-CN/byok-dependency-fix.md) | 打包版为什么报 `ERR_MODULE_NOT_FOUND: undici`，以及 undici 与 Node 20 的冲突 |
+| [`docs/zh-CN/graph-stdout-fix.md`](docs/zh-CN/graph-stdout-fix.md) | stdout 的 O(N²) 问题：按事件类型拆解的字节数，修复前后对比 |
+| [`docs/zh-CN/gatekeeper-troubleshooting.md`](docs/zh-CN/gatekeeper-troubleshooting.md) | 签名正确却仍被拒的完整排查：inode 缓存证据链与分支处置 |
+
+设置面板的实际截图在 `docs/images/`。
 
 ## 架构（与上游一致）
 
