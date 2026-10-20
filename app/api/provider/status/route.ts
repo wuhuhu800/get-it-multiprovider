@@ -19,6 +19,7 @@ import {
   type CodexRateLimits,
 } from "@/lib/codex-account";
 import { whichBinary, augmentedPath, resolveBundledBinary } from "@/lib/providers/cli-runner";
+import { resolvePreset } from "@/lib/provider-presets";
 import { readUsage, type ProviderUsage } from "@/lib/usage-store";
 
 export const runtime = "nodejs";
@@ -169,7 +170,7 @@ export async function GET() {
         ? {
             email: settings.piUrl ?? null,
             name: "Your own key (BYOK)",
-            planType: settings.piProvider ?? "Custom",
+            planType: resolvePreset(settings.piProvider).label,
             organizations: [],
             subscriptionActiveUntil: null,
             authMode: "BYOK",

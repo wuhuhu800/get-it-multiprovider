@@ -127,10 +127,16 @@ function resolveMacSigningMode() {
   if (!hasDeveloperIdCert || explicitAdHoc) {
     return {
       mode: "ad-hoc",
-      extraArgs: [],
+      // electron-builder has no ad-hoc identity of its own — passing
+      // `identity: "-"` makes it hunt for a keychain cert literally named "-"
+      // and skip signing entirely. So skip it deliberately and let the
+      // afterSign hook run scripts/sign-adhoc.py, which signs inside-out and
+      // applies entitlements only to the app + helpers (never to framework
+      // dylibs). That distinction is what keeps dyld happy.
+      extraArgs: ["--config.mac.hardenedRuntime=false"],
       extraEnv: {
         CSC_IDENTITY_AUTO_DISCOVERY: "false",
-        GETIT_MAC_SIGNING_MODE: "ad-hoc",
+        GETIT_MAC_SIGNING_MODE: "electron-builder-adhoc",
       },
     };
   }

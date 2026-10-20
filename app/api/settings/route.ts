@@ -8,6 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { loadSettings, saveSettings, type AppSettings } from "@/lib/settings-store";
+import { isByokPresetId } from "@/lib/provider-presets";
 
 export const runtime = "nodejs";
 
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
       typeof b.piModelFast === "string" ? b.piModelFast : current.piModelFast,
     piModelSmart:
       typeof b.piModelSmart === "string" ? b.piModelSmart : current.piModelSmart,
-    piProvider: typeof b.piProvider === "string" ? b.piProvider : current.piProvider,
+    piProvider: isByokPresetId(b.piProvider) ? b.piProvider : current.piProvider,
     piApiType: typeof b.piApiType === "string" ? b.piApiType : current.piApiType,
   };
   next.theme =

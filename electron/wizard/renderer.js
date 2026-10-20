@@ -61,6 +61,13 @@ const BYOK_PRESETS = {
   openai: { url: "https://api.openai.com/v1", apiType: "openai-completions", model: "gpt-4o-mini", needsKey: true },
   anthropic: { url: "https://api.anthropic.com", apiType: "anthropic-messages", model: "claude-3-5-haiku", needsKey: true },
   gemini: { url: "https://generativelanguage.googleapis.com/v1beta", apiType: "google-generative-ai", model: "gemini-2.5-flash", needsKey: true },
+  // Engines added by the multi-engine patch. Keep in sync with
+  // lib/provider-presets.ts — the wizard cannot import TS modules.
+  deepseek: { url: "https://api.deepseek.com/v1", apiType: "openai-completions", model: "deepseek-v4-pro", needsKey: true },
+  zhipu: { url: "https://open.bigmodel.cn/api/paas/v4", apiType: "openai-completions", model: "glm-5.3", needsKey: true },
+  mimo: { url: "https://api.xiaomimimo.com/v1", apiType: "openai-completions", model: "mimo-v2.6-pro", needsKey: true },
+  minimax: { url: "https://api.minimax.io/v1", apiType: "openai-completions", model: "MiniMax-M3", needsKey: true },
+  kimi: { url: "https://api.moonshot.cn/v1", apiType: "openai-completions", model: "kimi-k3", needsKey: true },
   custom: { url: "", apiType: "openai-completions", model: "", needsKey: true },
 };
 

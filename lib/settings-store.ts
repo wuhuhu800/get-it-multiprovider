@@ -18,6 +18,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { DATA_DIR } from "./paths";
 import { AUTO_GENERATE_VIZ, MAX_VIZ_GEN_RETRIES } from "./config";
+import { detectPresetFromUrl, isByokPresetId, type ByokPresetId } from "./provider-presets";
 
 export type AppSettings = {
   autoGenerate: boolean;
@@ -43,7 +44,7 @@ export type AppSettings = {
   piApiKey?: string;
   piModelFast?: string;
   piModelSmart?: string;
-  piProvider?: "ollama" | "gemini" | "openai" | "anthropic" | "custom";
+  piProvider?: ByokPresetId;
   piApiType?: "openai-completions" | "google-generative-ai" | "anthropic-messages";
   /** Appearance: explicit "light"/"dark", or "system" to follow the OS.
    *  Defaults to "light" when unset. */
@@ -58,11 +59,11 @@ function defaultsFromEnv(): AppSettings {
   const piApiKey = process.env.PI_API_KEY || "";
   
   // Resolve default provider from the URL
-  let piProvider: "ollama" | "gemini" | "openai" | "anthropic" | "custom" = "ollama";
-  if (piUrl.includes("generativelanguage.googleapis.com")) piProvider = "gemini";
-  else if (piUrl.includes("api.openai.com")) piProvider = "openai";
-  else if (piUrl.includes("api.anthropic.com")) piProvider = "anthropic";
-  else if (!piUrl.includes("localhost") && !piUrl.includes("127.0.0.1") && piUrl) piProvider = "custom";
+  let piProvider: ByokPresetId =
+    detectPresetFromUrl(piUrl) ??
+    (!piUrl.includes("localhost") && !piUrl.includes("127.0.0.1") && piUrl
+      ? "custom"
+      : "ollama");
   
   let piApiType: "openai-completions" | "google-generative-ai" | "anthropic-messages" = "openai-completions";
   if (piProvider === "gemini") piApiType = "google-generative-ai";
@@ -108,13 +109,15 @@ export function loadSettings(): AppSettings {
       const piUrl = typeof parsed.piUrl === "string" ? parsed.piUrl : env.piUrl;
       const piApiKey = typeof parsed.piApiKey === "string" ? parsed.piApiKey : env.piApiKey;
       
-      let piProvider = parsed.piProvider;
+      let piProvider: ByokPresetId | undefined = isByokPresetId(parsed.piProvider)
+        ? parsed.piProvider
+        : undefined;
       if (!piProvider && piUrl) {
-        if (piUrl.includes("generativelanguage.googleapis.com")) piProvider = "gemini";
-        else if (piUrl.includes("api.openai.com")) piProvider = "openai";
-        else if (piUrl.includes("api.anthropic.com")) piProvider = "anthropic";
-        else if (!piUrl.includes("localhost") && !piUrl.includes("127.0.0.1")) piProvider = "custom";
-        else piProvider = "ollama";
+        piProvider =
+          detectPresetFromUrl(piUrl) ??
+          (piUrl.includes("localhost") || piUrl.includes("127.0.0.1")
+            ? "ollama"
+            : "custom");
       }
       
       let piApiType = parsed.piApiType;

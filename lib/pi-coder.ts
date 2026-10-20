@@ -2,6 +2,7 @@ import { execFile, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import { loadSettings } from "./settings-store";
+import { resolvePreset } from "./provider-presets";
 import { CodexError } from "./codex-errors";
 import { resolveBundledBinary } from "./providers/cli-runner";
 
@@ -70,7 +71,7 @@ function getPiExecutionConfig(): { binary: string; preArgs: string[] } {
   return { binary: process.execPath, preArgs: ["--require", ensurePiShim(), getPiCliPath()] };
 }
 
-function buildEnvAndProvider(settings: ReturnType<typeof loadSettings>): { env: NodeJS.ProcessEnv; provider: string } {
+export function buildEnvAndProvider(settings: ReturnType<typeof loadSettings>): { env: NodeJS.ProcessEnv; provider: string } {
   const env = { ...process.env };
   let provider = "openai";
   
@@ -93,6 +94,16 @@ function buildEnvAndProvider(settings: ReturnType<typeof loadSettings>): { env: 
       }
     }
 
+    // Provider quirks (role names, thinking wire format, token field) are
+    // normally auto-detected by pi from the baseUrl. Hosts it doesn't know
+    // about — MiniMax, MiMo — need them spelled out; the preset carries that.
+    const compat = resolvePreset(settings.piProvider).compat;
+    const modelEntry = (id: string) => ({
+      id,
+      reasoning: true,
+      ...(compat ? { compat } : {}),
+    });
+
     const modelsJson = {
       providers: {
         getit_byok: {
@@ -100,8 +111,8 @@ function buildEnvAndProvider(settings: ReturnType<typeof loadSettings>): { env: 
           api: apiType,
           apiKey: settings.piApiKey || "dummy",
           models: [
-            { id: settings.piModelFast || "llama3.2", reasoning: true },
-            { id: settings.piModelSmart || "llama3.2", reasoning: true }
+            modelEntry(settings.piModelFast || "llama3.2"),
+            modelEntry(settings.piModelSmart || "llama3.2")
           ]
         }
       }

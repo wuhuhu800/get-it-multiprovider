@@ -20,6 +20,11 @@ import { Settings2, Pencil, Check, Sun, Moon, Monitor } from "lucide-react";
 import { AUTO_GENERATE_VIZ, MAX_VIZ_GEN_RETRIES } from "@/lib/config";
 import { APP_VERSION } from "@/lib/version";
 import type { ProviderName } from "@/lib/provider-types";
+import {
+  BYOK_PRESETS,
+  BYOK_PRESET_ORDER,
+  type ByokPresetId,
+} from "@/lib/provider-presets";
 
 export type SettingsPayload = {
   autoGenerate: boolean;
@@ -40,7 +45,7 @@ export type SettingsPayload = {
   piApiKey?: string;
   piModelFast?: string;
   piModelSmart?: string;
-  piProvider?: "ollama" | "gemini" | "openai" | "anthropic" | "custom";
+  piProvider?: ByokPresetId;
   piApiType?: "openai-completions" | "google-generative-ai" | "anthropic-messages";
   theme?: "light" | "dark" | "system";
 };
@@ -192,7 +197,7 @@ function SettingsPanel({ refreshKey }: { refreshKey: string }) {
   const [piApiKey, setPiApiKey] = useState<string>("");
   const [piModelFast, setPiModelFast] = useState<string>("llama3.2");
   const [piModelSmart, setPiModelSmart] = useState<string>("llama3.2");
-  const [piProvider, setPiProvider] = useState<"ollama" | "gemini" | "openai" | "anthropic" | "custom">("ollama");
+  const [piProvider, setPiProvider] = useState<ByokPresetId>("ollama");
   const [piApiType, setPiApiType] = useState<"openai-completions" | "google-generative-ai" | "anthropic-messages">("openai-completions");
 
   const [theme, setTheme] = useState<"light" | "dark" | "system" | undefined>();
@@ -293,45 +298,15 @@ function SettingsPanel({ refreshKey }: { refreshKey: string }) {
     persist({ maxRetries: clamped });
   }, [persist]);
 
-  const handlePiProviderChange = useCallback((newProvider: "ollama" | "gemini" | "openai" | "anthropic" | "custom") => {
+  const handlePiProviderChange = useCallback((newProvider: ByokPresetId) => {
+    const preset = BYOK_PRESETS[newProvider] ?? BYOK_PRESETS.custom;
     setPiProvider(newProvider);
-    let url = "";
-    let apiType: "openai-completions" | "google-generative-ai" | "anthropic-messages" = "openai-completions";
-    let modelFast = "";
-    let modelSmart = "";
-    
-    switch (newProvider) {
-      case "ollama":
-        url = "http://localhost:11434/v1";
-        apiType = "openai-completions";
-        modelFast = "qwen2.5-coder:7b";
-        modelSmart = "qwen2.5-coder:7b";
-        break;
-      case "gemini":
-        url = "https://generativelanguage.googleapis.com/v1beta";
-        apiType = "google-generative-ai";
-        modelFast = "gemini-2.5-flash";
-        modelSmart = "gemini-2.5-pro";
-        break;
-      case "openai":
-        url = "https://api.openai.com/v1";
-        apiType = "openai-completions";
-        modelFast = "gpt-4o-mini";
-        modelSmart = "gpt-4o";
-        break;
-      case "anthropic":
-        url = "https://api.anthropic.com";
-        apiType = "anthropic-messages";
-        modelFast = "claude-3-5-haiku";
-        modelSmart = "claude-3-5-sonnet";
-        break;
-      case "custom":
-        url = piUrl || "http://localhost:11434/v1";
-        apiType = piApiType || "openai-completions";
-        modelFast = piModelFast || "llama3.2";
-        modelSmart = piModelSmart || "llama3.2";
-        break;
-    }
+    // "Custom" carries no endpoint of its own — keep whatever the user has
+    // already typed so switching to Custom never wipes a hand-entered value.
+    const url = preset.url || piUrl || "http://localhost:11434/v1";
+    const apiType = newProvider === "custom" ? piApiType : preset.apiType;
+    const modelFast = preset.modelFast || piModelFast || "llama3.2";
+    const modelSmart = preset.modelSmart || piModelSmart || "llama3.2";
     setPiUrl(url);
     setPiApiType(apiType);
     setPiModelFast(modelFast);
@@ -341,7 +316,7 @@ function SettingsPanel({ refreshKey }: { refreshKey: string }) {
       piUrl: url,
       piApiType: apiType,
       piModelFast: modelFast,
-      piModelSmart: modelSmart
+      piModelSmart: modelSmart,
     });
   }, [piUrl, piApiType, piModelFast, piModelSmart, persist]);
 
@@ -366,15 +341,8 @@ function SettingsPanel({ refreshKey }: { refreshKey: string }) {
     };
   }, [persist]);
 
-  const getApiKeyPlaceholder = () => {
-    switch (piProvider) {
-      case "ollama": return "Optional (ignored by Ollama)";
-      case "gemini": return "Enter Gemini API Key";
-      case "openai": return "Enter OpenAI API Key";
-      case "anthropic": return "Enter Anthropic API Key";
-      default: return "Enter API Key";
-    }
-  };
+  const getApiKeyPlaceholder = () =>
+    BYOK_PRESETS[piProvider]?.keyHint ?? "Enter API Key";
 
   const onThemeSelect = useCallback(
     (next: "light" | "dark" | "system") => {
@@ -630,11 +598,11 @@ function SettingsPanel({ refreshKey }: { refreshKey: string }) {
               onChange={(e) => handlePiProviderChange(e.target.value as NonNullable<SettingsPayload["piProvider"]>)}
               className="w-full rounded-md border border-[var(--border-subtle)] bg-[var(--surface-raised)] px-2 py-1.5 text-[12px] font-medium text-[var(--ink-900)] focus:border-[var(--accent-500)] focus:outline-none"
             >
-              <option value="ollama">Ollama (Local)</option>
-              <option value="gemini">Google Gemini (AI Studio)</option>
-              <option value="openai">OpenAI (ChatGPT/Codex)</option>
-              <option value="anthropic">Anthropic (Claude)</option>
-              <option value="custom">Custom Endpoint</option>
+              {BYOK_PRESET_ORDER.map((id) => (
+                <option key={id} value={id}>
+                  {BYOK_PRESETS[id].label}
+                </option>
+              ))}
             </select>
           </div>
           <div>

@@ -20,6 +20,7 @@
     "test:errors": "tsx scripts/test-error-handling.ts",
     "test:md": "tsx scripts/test-md-import.ts",
     "smoke": "node scripts/smoke-test.mjs",
+    "verify:byok": "tsx scripts/verify-byok-engines.ts",
     "smoke-all": "node scripts/full-test.mjs",
     "build-writeup": "node scripts/build-pdf.mjs",
     "cleanup": "node scripts/cleanup-orphans.mjs",

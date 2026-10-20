@@ -48,6 +48,22 @@ module.exports = async function afterSign(context) {
 
   const mode = process.env.GETIT_MAC_SIGNING_MODE || "ad-hoc";
 
+  if (mode === "electron-builder-adhoc") {
+    // electron-builder skipped signing (CSC_IDENTITY_AUTO_DISCOVERY=false), so
+    // this hook is the only signer. Delegate to sign-adhoc.py: it walks the
+    // bundle inside-out and applies entitlements only to the app and its
+    // helpers. A single `codesign --deep` pass here stamps allow-jit onto the
+    // framework dylibs too, which breaks dyld's chain-of-trust and leaves the
+    // process suspended at ~32 KB RSS with no window and no error output.
+    console.log(`[after-sign] mode=${mode} — signing inside-out via sign-adhoc.py`);
+    execFileSync(
+      "python3",
+      [path.join(__dirname, "sign-adhoc.py"), appPath],
+      { stdio: "inherit", cwd: path.join(__dirname, "..") },
+    );
+    return;
+  }
+
   if (mode === "developer-id" || mode === "developer-id-no-notary") {
     // electron-builder already signed everything with the Developer
     // ID cert (and, for `developer-id`, will go on to notarize +
@@ -72,10 +88,32 @@ module.exports = async function afterSign(context) {
   // (the bundled Codex Rust binary lives under .../app.asar.unpacked/
   // electron/codex-bin/.../codex).
   // `--sign -` is the documented ad-hoc identity sigil.
+  // Entitlements are mandatory here, not cosmetic: Electron's V8 needs
+  // `com.apple.security.cs.allow-jit` (and the unsigned-executable-memory
+  // companion) to allocate executable pages. electron-builder skips signing
+  // entirely when CSC_IDENTITY_AUTO_DISCOVERY=false, so this branch is the
+  // only thing that signs the bundle — omitting --entitlements produces an
+  // app that launches, never creates a window, and writes nothing to disk.
+  const entitlementsPath = path.join(
+    __dirname,
+    "..",
+    "electron",
+    "assets",
+    "entitlements.mac.plist",
+  );
+  const entitlementsArgs = fs.existsSync(entitlementsPath)
+    ? ["--entitlements", entitlementsPath]
+    : [];
+  if (entitlementsArgs.length === 0) {
+    console.warn(
+      `[after-sign] WARNING: ${entitlementsPath} not found — the app will build but V8 will refuse to start.`,
+    );
+  }
+
   console.log(`[after-sign] mode=${mode} — ad-hoc signing ${appPath}`);
   execFileSync(
     "codesign",
-    ["--force", "--deep", "--sign", "-", "--timestamp=none", appPath],
+    ["--force", "--deep", "--sign", "-", "--timestamp=none", ...entitlementsArgs, appPath],
     { stdio: "inherit" },
   );
 
