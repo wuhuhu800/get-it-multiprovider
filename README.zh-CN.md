@@ -4,7 +4,7 @@
 
 ### Read it. See it. Get it.
 
-**这是 [Get It.](https://github.com/beltromatti/get-it) 的下游改良版：给 BYOK 通道新增五家国内模型引擎，并修掉两个导致该通道在打包版里从未跑通过的上游 Bug。**
+**这是 [Get It.](https://github.com/beltromatti/get-it) 的下游改良版：给 BYOK 通道新增五家国内模型引擎，并修掉三个导致该通道在打包版里从未跑通过的上游 Bug。**
 
 [![上游](https://img.shields.io/badge/upstream-beltromatti%2Fget--it-1a1a2e?style=for-the-badge&logo=github)](https://github.com/beltromatti/get-it)
 [![基线](https://img.shields.io/badge/baseline-v1.4.0-5b66f1?style=for-the-badge)](https://github.com/beltromatti/get-it/releases/tag/v1.4.0)

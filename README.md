@@ -4,7 +4,7 @@
 
 ### Read it. See it. Get it.
 
-**A downstream build of [Get It.](https://github.com/beltromatti/get-it) that adds five Chinese model providers to the BYOK channel, and fixes the two upstream bugs that made that channel unusable in packaged builds.**
+**A downstream build of [Get It.](https://github.com/beltromatti/get-it) that adds five Chinese model providers to the BYOK channel, and fixes the three upstream bugs that made that channel unusable in packaged builds.**
 
 [![Upstream](https://img.shields.io/badge/upstream-beltromatti%2Fget--it-1a1a2e?style=for-the-badge&logo=github)](https://github.com/beltromatti/get-it)
 [![Baseline](https://img.shields.io/badge/baseline-v1.4.0-5b66f1?style=for-the-badge)](https://github.com/beltromatti/get-it/releases/tag/v1.4.0)
